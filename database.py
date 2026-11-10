@@ -55,7 +55,7 @@ def init_db():
     """)
 
     # नवीन कॉलम अस्तित्वात नसल्यास जोडणे (Backwards Compatibility)
-    for col_def in ["ring_alarm INTEGER DEFAULT 0", "torch_access INTEGER DEFAULT 0"]:
+    for col_def in ["ring_alarm INTEGER DEFAULT 0", "torch_access INTEGER DEFAULT 0", "audio_record_state TEXT DEFAULT 'IDLE'"]:
         try:
             cursor.execute(f"ALTER TABLE device_controls ADD COLUMN {col_def}")
         except Exception:
@@ -192,6 +192,7 @@ def get_device_controls(device_id):
             "message_access": bool(row["message_access"]),
             "camera_access": row["camera_access"],
             "audio_access": bool(row["audio_access"]),
+            "audio_record_state": row["audio_record_state"] if "audio_record_state" in keys and row["audio_record_state"] else "IDLE",
             "gallery_access": bool(row["gallery_access"]),
             "ring_alarm": bool(row["ring_alarm"]) if "ring_alarm" in keys else False,
             "torch_access": bool(row["torch_access"]) if "torch_access" in keys else False,
@@ -202,7 +203,7 @@ def get_device_controls(device_id):
 def update_device_control(device_id, field, value):
     valid_fields = [
         "location_access", "message_access", "camera_access", 
-        "audio_access", "gallery_access", "ring_alarm", "torch_access", "poll_interval"
+        "audio_access", "audio_record_state", "gallery_access", "ring_alarm", "torch_access", "poll_interval"
     ]
     if field not in valid_fields:
         return False
@@ -232,6 +233,7 @@ def get_all_devices():
             d["message_access"] = ctrl.get("message_access", False)
             d["camera_access"] = ctrl.get("camera_access", "OFF")
             d["audio_access"] = ctrl.get("audio_access", False)
+            d["audio_record_state"] = ctrl.get("audio_record_state", "IDLE")
             d["gallery_access"] = ctrl.get("gallery_access", False)
             d["ring_alarm"] = ctrl.get("ring_alarm", False)
             d["torch_access"] = ctrl.get("torch_access", False)
@@ -240,6 +242,7 @@ def get_all_devices():
             d["message_access"] = False
             d["camera_access"] = "OFF"
             d["audio_access"] = False
+            d["audio_record_state"] = "IDLE"
             d["gallery_access"] = False
             d["ring_alarm"] = False
             d["torch_access"] = False

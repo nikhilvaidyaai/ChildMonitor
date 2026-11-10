@@ -12,17 +12,14 @@ import database
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "shreeom-childmonitor-security-key-2026")
 
-# पालक डॅशबोर्ड पासवर्ड
 PARENT_PASSWORD = os.environ.get("PARENT_PASSWORD", "shreeom")
 
-# डेटाबेस तयार / अपडेट करणे
 database.init_db()
 
 BASE_DATA_DIR = os.path.join(os.path.dirname(__file__), "Children_Data")
 os.makedirs(BASE_DATA_DIR, exist_ok=True)
 
 def get_safe_child_folder(child_id):
-    """डिव्हाइससाठी सुरक्षित व एकसंध फोल्डर पाथ मिळवणे"""
     safe_id = "".join([c for c in str(child_id) if c.isalnum() or c in ("-", "_")])
     if not safe_id:
         safe_id = "device_default"
@@ -31,7 +28,6 @@ def get_safe_child_folder(child_id):
     return folder_path
 
 def save_text_backup(child_id, data_type, content):
-    """डेटाबेससोबतच टेक्स्ट फाईलमध्ये बॅकअप ठेवणे"""
     try:
         child_folder = get_safe_child_folder(child_id)
         file_path = os.path.join(child_folder, f"{data_type}.txt")
@@ -40,8 +36,6 @@ def save_text_backup(child_id, data_type, content):
     except Exception as e:
         print(f"[BACKUP ERROR] {e}")
 
-# ================= AUTHENTICATION HELPERS =================
-
 def is_authenticated():
     return session.get("authenticated") is True
 
@@ -49,11 +43,11 @@ def is_authenticated():
 
 LOGIN_HTML = """
 <!DOCTYPE html>
-<html lang="mr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>पालक लॉगिन - ChildMonitor</title>
+    <title>ChildMonitor - Parent Login</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -63,7 +57,7 @@ LOGIN_HTML = """
         }
         * { box-sizing: border-box; }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background: radial-gradient(circle at top, #1e293b, #0f172a);
             color: #f8fafc;
             display: flex;
@@ -77,19 +71,15 @@ LOGIN_HTML = """
             background: var(--card);
             border: 1px solid #334155;
             border-radius: 16px;
-            padding: 35px 30px;
+            padding: 36px 30px;
             width: 100%;
-            max-width: 420px;
+            max-width: 400px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             text-align: center;
         }
-        .logo-icon {
-            font-size: 50px;
-            margin-bottom: 10px;
-            display: inline-block;
-        }
-        h2 { margin: 0 0 8px 0; font-size: 24px; color: #ffffff; }
-        p.subtitle { color: #94a3b8; font-size: 14px; margin-bottom: 25px; }
+        .logo-icon { font-size: 46px; margin-bottom: 8px; }
+        h2 { margin: 0 0 6px 0; font-size: 22px; font-weight: 700; color: #ffffff; }
+        p.subtitle { color: #94a3b8; font-size: 13px; margin: 0 0 24px 0; }
         .form-group { text-align: left; margin-bottom: 20px; }
         label { display: block; font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 6px; }
         input[type="password"] {
@@ -114,7 +104,7 @@ LOGIN_HTML = """
             border: none;
             padding: 12px;
             border-radius: 10px;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 600;
             cursor: pointer;
             transition: 0.2s;
@@ -126,17 +116,17 @@ LOGIN_HTML = """
             border: 1px solid #dc2626;
             padding: 10px;
             border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 14px;
+            margin-bottom: 18px;
+            font-size: 13px;
         }
-        .footer-text { margin-top: 25px; font-size: 12px; color: #64748b; }
+        .footer-text { margin-top: 24px; font-size: 12px; color: #64748b; }
     </style>
 </head>
 <body>
     <div class="login-card">
         <div class="logo-icon">🛡️</div>
-        <h2>पालक नियंत्रण केंद्र</h2>
-        <p class="subtitle">Child Safety & Parental Monitoring Dashboard</p>
+        <h2>Parent Dashboard</h2>
+        <p class="subtitle">Child Safety & Parental Control</p>
 
         {% if error %}
         <div class="error-msg">⚠️ {{ error }}</div>
@@ -144,15 +134,13 @@ LOGIN_HTML = """
 
         <form method="POST" action="/login">
             <div class="form-group">
-                <label for="password">पालक डॅशबोर्ड पासवर्ड (Password)</label>
-                <input type="password" id="password" name="password" placeholder="पासवर्ड टाका..." required autofocus>
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter password (shreeom)" required autofocus>
             </div>
-            <button type="submit" class="btn-submit">🔐 प्रवेश करा (Login)</button>
+            <button type="submit" class="btn-submit">Sign In</button>
         </form>
 
-        <div class="footer-text">
-            सुरक्षित बाल संरक्षण प्रणाली • ChildMonitor
-        </div>
+        <div class="footer-text">Child Safety Monitoring System</div>
     </div>
 </body>
 </html>
@@ -170,7 +158,7 @@ def login():
             session['authenticated'] = True
             return redirect(url_for('dashboard'))
         else:
-            error = "चुकीचा पासवर्ड! कृपया योग्य पासवर्ड प्रविष्ट करा."
+            error = "Invalid password. Please enter correct password."
 
     return render_template_string(LOGIN_HTML, error=error)
 
@@ -183,17 +171,12 @@ def logout():
 
 @app.route('/get_commands/<child_id>', methods=['POST'])
 def get_commands(child_id):
-    """
-    ॲप दर १५-३० सेकंदांनी सर्व्हरकडून नवीन आदेश मागवते.
-    यासोबतच बॅटरी लेव्हल, चार्जिंग स्टेटस आणि वाय-फाय नाव अपडेट होते.
-    """
     data = request.json or {}
     child_name = data.get('child_name', 'Unknown_Device')
     battery = data.get('battery_level', None)
     is_charging = data.get('is_charging', None)
     wifi_ssid = data.get('wifi_ssid', None)
 
-    # डिव्हाइस डेटाबेसमध्ये नोंदवणे / अपडेट करणे
     database.register_or_update_device(
         device_id=child_id, 
         name=child_name, 
@@ -202,12 +185,11 @@ def get_commands(child_id):
         wifi=wifi_ssid
     )
 
-    # लो-बॅटरी अलर्ट (फक्त एकदाच, वारंवार स्पॅम न होता)
     if battery is not None and battery <= 15 and not is_charging:
         database.add_alert(
             device_id=child_id,
             alert_type="LOW_BATTERY",
-            message=f"⚠️ {child_name} च्या मोबाईलची बॅटरी फक्त {battery}% शिल्लक आहे! चार्जिंगची गरज आहे."
+            message=f"Low Battery Warning: {child_name} is at {battery}%."
         )
 
     controls = database.get_device_controls(child_id)
@@ -218,17 +200,17 @@ def get_commands(child_id):
             "message_access": False,
             "camera_access": "OFF",
             "audio_access": False,
+            "audio_record_state": "IDLE",
             "gallery_access": False,
             "ring_alarm": False,
             "torch_access": False,
-            "poll_interval": 30
+            "poll_interval": 5
         }
 
     return jsonify(controls), 200
 
 @app.route('/update_location', methods=['POST'])
 def update_location():
-    """मुलाच्या फोनवरून GPS लोकेशन स्वीकारणे"""
     data = request.json or {}
     child_id = data.get('child_id')
     lat = data.get('latitude')
@@ -246,11 +228,9 @@ def update_location():
     except (ValueError, TypeError):
         return jsonify({"error": "Coordinates must be numbers"}), 400
 
-    # डेटाबेसमध्ये लोकेशन साठवणे (जिओफेन्स सुरक्षित क्षेत्र आपोआप तपासले जाईल)
     database.add_location(child_id, lat, lon, acc, time_str)
     database.register_or_update_device(child_id)
 
-    # टेक्स्ट फाईल बॅकअप
     log_entry = f"[{time_str}] -> Lat: {lat}, Lon: {lon}, Acc: {acc}m"
     save_text_backup(child_id, "location", log_entry)
 
@@ -258,7 +238,6 @@ def update_location():
 
 @app.route('/log_sms', methods=['POST'])
 def log_sms():
-    """एसएमएस लॉग्स स्वीकारणे"""
     data = request.json or {}
     child_id = data.get('child_id')
     sender = data.get('sender', 'Unknown')
@@ -275,7 +254,6 @@ def log_sms():
 
 @app.route('/upload_camera_photo', methods=['POST'])
 def upload_camera_photo():
-    """कॅमेऱ्याने काढलेला फोटो स्वीकारणे"""
     if 'image' not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
     
@@ -291,17 +269,14 @@ def upload_camera_photo():
     full_path = os.path.join(target_dir, filename)
     file.save(full_path)
 
-    # डेटाबेसमध्ये नोंद
     database.add_media_record(child_id, "image", full_path, filename)
-
-    # फोटो मिळताच कॅमेरा कमांड पुन्हा OFF करणे
     database.update_device_control(child_id, "camera_access", "OFF")
 
+    print(f"[PHOTO RECEIVED] Device: {child_id}, File: {filename}")
     return jsonify({"status": "success", "filename": filename}), 200
 
 @app.route('/upload_audio', methods=['POST'])
 def upload_audio():
-    """रेकॉर्ड केलेला ऑडिओ स्वीकारणे"""
     if 'audio' not in request.files:
         return jsonify({"error": "No audio file"}), 400
     
@@ -317,17 +292,14 @@ def upload_audio():
     full_path = os.path.join(target_dir, filename)
     file.save(full_path)
 
-    # डेटाबेसमध्ये नोंद
     database.add_media_record(child_id, "audio", full_path, filename)
-    
-    # ऑडिओ कमांड पुन्हा OFF करणे
-    database.update_device_control(child_id, "audio_access", 0)
+    database.update_device_control(child_id, "audio_record_state", "IDLE")
 
+    print(f"[AUDIO RECEIVED] Device: {child_id}, File: {filename}")
     return jsonify({"status": "success", "filename": filename}), 200
 
 @app.route('/trigger_sos', methods=['POST'])
 def trigger_sos():
-    """मुलाने SOS बटण दाबल्यास तात्काळ अलर्ट आणि कमांड्स सक्रिय करणे"""
     data = request.json or {}
     child_id = data.get('child_id')
     lat = data.get('latitude')
@@ -336,28 +308,24 @@ def trigger_sos():
     if not child_id:
         return jsonify({"error": "child_id required"}), 400
 
-    # तात्काळ हाय-प्रायॉरिटी आणीबाणी अलर्ट तयार करणे
     database.add_alert(
         device_id=child_id,
         alert_type="SOS",
-        message="🚨 आणीबाणी (EMERGENCY SOS): मुलाने मदतीचा तात्काळ इशारा दिला आहे!",
+        message="EMERGENCY SOS: Child triggered panic button!",
         lat=lat,
         lon=lon
     )
 
-    # तात्काळ कॅमेरा आणि ऑडिओ चालू करण्याचे आदेश देणे
     database.update_device_control(child_id, "location_access", 1)
     database.update_device_control(child_id, "camera_access", "FRONT")
-    database.update_device_control(child_id, "audio_access", 1)
 
     print(f"[SOS TRIGGERED] Device: {child_id} at {lat}, {lon}")
-    return jsonify({"status": "SOS received, emergency protocols activated"}), 200
+    return jsonify({"status": "SOS received"}), 200
 
 # ================= MEDIA SERVING =================
 
 @app.route('/media/<child_id>/<folder_type>/<filename>')
 def serve_media(child_id, folder_type, filename):
-    """डॅशबोर्डवर थेट फोटो पाहण्यासाठी आणि ऑडिओ ऐकण्यासाठी"""
     if not is_authenticated():
         return redirect(url_for('login'))
 
@@ -372,7 +340,7 @@ def serve_media(child_id, folder_type, filename):
     if os.path.exists(os.path.join(folder_path, sec_filename)):
         return send_from_directory(folder_path, sec_filename)
 
-    # जुन्या फोल्डर स्ट्रक्चरसाठी फॉलबॅक (Backward Compatibility)
+    # Legacy folder fallbacks
     for prefix in ["My_Test_Phone_", "Device_", "Unknown_"]:
         alt_path = os.path.join(BASE_DATA_DIR, f"{prefix}{child_id}", folder_type)
         if os.path.exists(os.path.join(alt_path, sec_filename)):
@@ -380,11 +348,10 @@ def serve_media(child_id, folder_type, filename):
 
     return "File not found", 404
 
-# ================= LIVE STATUS API (AJAX POLLING) =================
+# ================= LIVE STATUS API =================
 
 @app.route('/api/live_status')
 def api_live_status():
-    """डॅशबोर्ड संपूर्ण रिफ्रेश न करता डेटा थेट अपडेट करण्यासाठी AJAX API"""
     if not is_authenticated():
         return jsonify({"error": "Unauthorized"}), 401
 
@@ -407,7 +374,7 @@ def api_live_status():
                 except Exception:
                     diff_sec = 9999
 
-        status_str = "🟢 ONLINE" if diff_sec < 90 else ("🟡 IDLE" if diff_sec < 300 else "🔴 OFFLINE")
+        status_str = "ONLINE" if diff_sec < 60 else ("IDLE" if diff_sec < 300 else "OFFLINE")
         latest_loc = database.get_latest_location(cid)
 
         result.append({
@@ -420,7 +387,7 @@ def api_live_status():
             "status": status_str,
             "latest_loc": latest_loc,
             "camera_access": d.get("camera_access", "OFF"),
-            "audio_access": bool(d.get("audio_access", 0)),
+            "audio_record_state": d.get("audio_record_state", "IDLE"),
             "ring_alarm": bool(d.get("ring_alarm", 0)),
             "torch_access": bool(d.get("torch_access", 0))
         })
@@ -436,319 +403,297 @@ def api_live_status():
 
 DASHBOARD_HTML = """
 <!DOCTYPE html>
-<html lang="mr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>पालक नियंत्रण व सुरक्षा केंद्र</title>
-    <!-- Leaflet CSS & JS for OpenStreetMap -->
+    <title>ChildMonitor - Dashboard</title>
+    <!-- Leaflet CSS & JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         :root {
             --primary: #2563eb;
             --primary-dark: #1d4ed8;
-            --danger: #dc2626;
-            --success: #16a34a;
-            --warning: #ca8a04;
+            --danger: #ef4444;
+            --success: #10b981;
+            --warning: #f59e0b;
             --dark: #0f172a;
             --card-bg: #ffffff;
             --bg: #f8fafc;
         }
         * { box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background-color: var(--bg); color: #334155; }
-        header { background: linear-gradient(135deg, #1e293b, #0f172a); color: white; padding: 16px 25px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-        header h1 { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 10px; }
-        .header-actions { display: flex; align-items: center; gap: 12px; }
-        .stat-pill { background: rgba(255,255,255,0.12); padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
-        .btn-logout { background: #334155; color: white; border: none; padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; text-decoration: none; transition: 0.2s; }
-        .btn-logout:hover { background: #475569; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; background-color: var(--bg); color: #1e293b; }
+        
+        /* Modern Header */
+        header { background: #0f172a; color: white; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .logo-box { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+        .header-actions { display: flex; align-items: center; gap: 10px; }
+        .status-pill { background: rgba(16, 185, 129, 0.15); color: #34d399; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+        .btn-logout { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; text-decoration: none; transition: 0.2s; }
+        .btn-logout:hover { background: #334155; color: white; }
 
-        .container { padding: 20px 25px; max-width: 1500px; margin: 0 auto; }
+        .container { padding: 20px; max-width: 1450px; margin: 0 auto; }
 
-        /* Alerts Section */
-        .alerts-wrapper { margin-bottom: 20px; }
-        .alert-banner { background: #fee2e2; border-left: 6px solid var(--danger); padding: 12px 18px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 6px rgba(220,38,38,0.1); }
-        .alert-banner b { color: var(--danger); font-size: 15px; }
+        /* Notification Toast */
+        #toast-box { display: none; background: #1e293b; color: white; padding: 12px 20px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; font-weight: 500; border-left: 4px solid var(--primary); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
 
-        /* Grid Layout */
-        .grid-main { display: grid; grid-template-columns: 370px 1fr; gap: 20px; }
-        @media (max-width: 950px) {
-            .grid-main { grid-template-columns: 1fr; }
-        }
+        /* Alerts */
+        .alert-banner { background: #fee2e2; border-left: 4px solid var(--danger); padding: 12px 16px; border-radius: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+        .alert-banner b { color: var(--danger); font-size: 14px; }
 
-        /* Device Cards */
-        .device-card { background: var(--card-bg); border-radius: 14px; padding: 18px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; margin-bottom: 18px; }
-        .device-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; margin-bottom: 12px; }
-        .device-name { font-size: 17px; font-weight: 700; color: #0f172a; }
+        /* Layout Grid */
+        .grid-main { display: grid; grid-template-columns: 360px 1fr; gap: 20px; }
+        @media (max-width: 900px) { .grid-main { grid-template-columns: 1fr; } }
 
-        .badge { padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        /* Device Card */
+        .device-card { background: white; border-radius: 12px; padding: 16px; border: 1px solid #e2e8f0; box-shadow: 0 2px 6px rgba(0,0,0,0.03); margin-bottom: 16px; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .device-title { font-size: 16px; font-weight: 700; color: #0f172a; margin: 0; }
+        .device-id { font-size: 11px; color: #64748b; }
+        
+        .badge { padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
         .badge-online { background: #dcfce7; color: #15803d; }
         .badge-idle { background: #fef9c3; color: #a16207; }
         .badge-offline { background: #fee2e2; color: #b91c1c; }
 
-        .battery-meter { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 13px; }
-        .battery-bar { width: 90px; height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden; }
+        .meta-row { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #64748b; margin-bottom: 12px; }
+        .battery-box { display: flex; align-items: center; gap: 6px; }
+        .battery-bar { width: 50px; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
         .battery-fill { height: 100%; transition: width 0.3s; }
 
-        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 7px 11px; font-size: 12px; font-weight: 600; border-radius: 8px; border: none; cursor: pointer; text-decoration: none; transition: 0.2s ease; }
+        /* Action Buttons Grid */
+        .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 10px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; text-decoration: none; transition: 0.15s ease; }
         .btn-primary { background: var(--primary); color: white; }
         .btn-primary:hover { background: var(--primary-dark); }
-        .btn-success { background: var(--success); color: white; }
         .btn-danger { background: var(--danger); color: white; }
         .btn-warning { background: var(--warning); color: white; }
-        .btn-outline { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; }
-        .btn-outline:hover { background: #e2e8f0; }
+        .btn-outline { background: #f8fafc; color: #334155; border: 1px solid #cbd5e1; }
+        .btn-outline:hover { background: #f1f5f9; }
+        .btn-recording { background: #dc2626; color: white; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 0.9; } 50% { opacity: 1; } 100% { opacity: 0.9; } }
+        .col-full { grid-column: span 2; }
 
-        .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
-        .full-width-btn { grid-column: span 2; }
-
-        /* Map Box */
-        .map-container { height: 440px; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; margin-bottom: 20px; position: relative; }
+        /* Map */
+        .map-wrapper { height: 400px; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 2px 6px rgba(0,0,0,0.04); margin-bottom: 18px; }
         #map { height: 100%; width: 100%; }
-        .map-hint { position: absolute; bottom: 10px; left: 10px; z-index: 1000; background: rgba(15,23,42,0.85); color: white; padding: 6px 12px; border-radius: 6px; font-size: 12px; pointer-events: none; }
 
-        /* Tabs Section */
-        .tabs-header { display: flex; gap: 8px; border-bottom: 2px solid #e2e8f0; margin-bottom: 18px; overflow-x: auto; }
-        .tab-btn { padding: 10px 16px; background: none; border: none; font-size: 14px; font-weight: 600; color: #64748b; cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; }
+        /* Tabs */
+        .tabs-nav { display: flex; gap: 6px; border-bottom: 2px solid #e2e8f0; margin-bottom: 16px; overflow-x: auto; }
+        .tab-btn { padding: 9px 14px; background: none; border: none; font-size: 13px; font-weight: 600; color: #64748b; cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; }
         .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
 
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
 
-        /* Photo Gallery */
-        .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
-        .photo-card { background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
-        .photo-card img { width: 100%; height: 140px; object-fit: cover; cursor: pointer; transition: 0.3s; }
-        .photo-card img:hover { transform: scale(1.03); }
-        .photo-card .info { padding: 8px 10px; font-size: 11px; color: #64748b; }
+        /* Photos Grid */
+        .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
+        .photo-card { background: white; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 1px 4px rgba(0,0,0,0.03); }
+        .photo-card img { width: 100%; height: 130px; object-fit: cover; cursor: pointer; transition: 0.2s; }
+        .photo-card img:hover { transform: scale(1.02); }
+        .photo-card .meta { padding: 8px 10px; font-size: 11px; color: #64748b; }
 
-        /* Audio List */
-        .audio-item { background: white; border-radius: 10px; padding: 12px 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e2e8f0; flex-wrap: wrap; gap: 10px; }
-        
-        /* SMS List */
-        .sms-item { background: white; border-radius: 10px; padding: 12px 16px; margin-bottom: 10px; border-left: 4px solid var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
-        .sms-header { display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #0f172a; }
-        .sms-body { font-size: 14px; color: #475569; }
+        /* Audio Items */
+        .audio-row { background: white; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e2e8f0; flex-wrap: wrap; gap: 8px; }
 
-        /* Geofence Form */
-        .geofence-form { background: white; padding: 16px; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 18px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-        .geofence-form input { padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; }
+        /* Tables */
+        .data-table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; font-size: 13px; border: 1px solid #e2e8f0; }
+        .data-table th { background: #f8fafc; padding: 9px 12px; text-align: left; font-weight: 600; color: #475569; }
+        .data-table td { padding: 9px 12px; border-top: 1px solid #f1f5f9; }
 
-        /* Modal Lightbox */
+        /* Lightbox */
         #imgModal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); align-items: center; justify-content: center; }
-        #imgModal img { max-width: 90%; max-height: 85%; border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.8); }
+        #imgModal img { max-width: 90%; max-height: 85%; border-radius: 8px; }
     </style>
 </head>
 <body>
     <header>
-        <h1>🛡️ पालक नियंत्रण व सुरक्षा केंद्र (ChildMonitor)</h1>
+        <div class="logo-box">🛡️ ChildMonitor</div>
         <div class="header-actions">
-            <span class="stat-pill">📱 डिव्हाइसेस: <b id="stat-devices-count">{{ devices|length }}</b></span>
-            <span class="stat-pill">🚨 अलर्ट्स: <b id="stat-alerts-count">{{ active_alerts|length }}</b></span>
-            <span class="stat-pill" style="background: rgba(22,163,74,0.25); color: #86efac;">● लाईव्ह मोड</span>
-            <a href="/logout" class="btn-logout">🚪 बाहेर पडा (Logout)</a>
+            <span class="status-pill">● Live Tracking</span>
+            <a href="/logout" class="btn-logout">Logout</a>
         </div>
     </header>
 
     <div class="container">
-        <!-- सक्रिय आणीबाणी सूचना (Alerts Banner) -->
-        <div id="alerts-container" class="alerts-wrapper">
-            {% if active_alerts %}
-            <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
-                <a href="/resolve_all_alerts" class="btn btn-outline" style="font-size: 11px;">✓ सर्व अलर्ट्स मिटवा (Clear All)</a>
+        <!-- Toast Feedback -->
+        <div id="toast-box"></div>
+
+        <!-- Active Alerts -->
+        {% for alert in active_alerts %}
+        <div class="alert-banner">
+            <div>
+                <b>{{ alert.alert_type }}:</b> {{ alert.message }}
+                <span style="font-size: 11px; color: #64748b; margin-left: 8px;">({{ alert.timestamp }})</span>
             </div>
-            {% endif %}
-            {% for alert in active_alerts %}
-            <div class="alert-banner">
-                <div>
-                    <b>{{ alert.alert_type }}:</b> {{ alert.message }}
-                    <span style="font-size: 12px; color: #64748b; margin-left: 10px;">({{ alert.timestamp }})</span>
-                </div>
-                <a href="/resolve_alert/{{ alert.id }}" class="btn btn-outline" style="background: white;">खूण मिटवा (Resolve)</a>
-            </div>
-            {% endfor %}
+            <a href="/resolve_alert/{{ alert.id }}" class="btn btn-outline" style="background: white; font-size: 11px;">Dismiss</a>
         </div>
+        {% endfor %}
 
         <div class="grid-main">
-            <!-- डावी बाजू: जोडलेली उपकरणे व थेट नियंत्रणे -->
-            <div class="devices-column">
-                <h2 style="font-size: 17px; margin: 0 0 12px 0;">📱 नोंदणीकृत उपकरणे</h2>
-                
+            <!-- Left: Devices List & Quick Controls -->
+            <div class="sidebar-column">
+                <h3 style="margin: 0 0 12px 0; font-size: 15px; color: #334155;">Connected Devices</h3>
+
                 {% if not devices %}
-                <div class="device-card" style="text-align: center; color: #64748b;">
-                    <b>⚠️ कोणतेही डिव्हाइस जोडलेले नाही.</b><br>
-                    मुलाच्या फोनवर ॲप सुरू होताच डिव्हाइस आपोआप येथे दिसेल.
+                <div class="device-card" style="text-align: center; color: #64748b; padding: 25px;">
+                    No device connected yet.<br>
+                    <small>Open the app on mobile to connect automatically.</small>
                 </div>
                 {% endif %}
 
                 {% for d in devices %}
                 <div class="device-card" id="card-{{ d.id }}">
-                    <div class="device-header">
+                    <div class="card-header">
                         <div>
-                            <span class="device-name">{{ d.name }}</span>
-                            <div style="font-size: 11px; color: #64748b;">ID: {{ d.id }}</div>
+                            <div class="device-title">{{ d.name }}</div>
+                            <div class="device-id">ID: {{ d.id }}</div>
                         </div>
-                        <span class="badge {{ 'badge-online' if status[d.id] == '🟢 ONLINE' else ('badge-idle' if status[d.id] == '🟡 IDLE' else 'badge-offline') }}" id="badge-{{ d.id }}">{{ status[d.id] }}</span>
+                        <span class="badge {{ 'badge-online' if status[d.id] == 'ONLINE' else ('badge-idle' if status[d.id] == 'IDLE' else 'badge-offline') }}" id="badge-{{ d.id }}">{{ status[d.id] }}</span>
                     </div>
 
-                    <!-- बॅटरी आणि नेटवर्क माहिती -->
-                    <div class="battery-meter">
-                        <span>🔋 बॅटरी: <b>{{ d.battery_level }}%</b></span>
-                        <div class="battery-bar">
-                            <div class="battery-fill" style="width: {{ d.battery_level }}%; background-color: {{ '#16a34a' if d.battery_level > 30 else '#dc2626' }};"></div>
+                    <div class="meta-row">
+                        <div class="battery-box">
+                            <span>🔋 {{ d.battery_level }}%</span>
+                            <div class="battery-bar">
+                                <div class="battery-fill" style="width: {{ d.battery_level }}%; background-color: {{ '#10b981' if d.battery_level > 25 else '#ef4444' }};"></div>
+                            </div>
                         </div>
-                        {% if d.is_charging %}<span>⚡ चार्जिंग</span>{% endif %}
-                    </div>
-                    <div style="font-size: 12px; color: #64748b; margin-bottom: 10px;">
-                        📶 नेटवर्क: <b>{{ d.wifi_ssid }}</b> | 🕒 पाहिले: {{ d.last_seen }}
+                        <span>📶 {{ d.wifi_ssid }}</span>
                     </div>
 
-                    <!-- रिमोट नियंत्रणे (Remote Commands) -->
+                    <!-- Clean Remote Action Buttons -->
                     <div class="controls-grid">
-                        <a href="/set_camera/{{ d.id }}/FRONT" class="btn btn-primary">
+                        <button onclick="triggerCamera('{{ d.id }}', 'FRONT')" class="btn btn-primary">
                             🤳 Front Cam
-                        </a>
-                        <a href="/set_camera/{{ d.id }}/BACK" class="btn btn-primary">
+                        </button>
+                        <button onclick="triggerCamera('{{ d.id }}', 'BACK')" class="btn btn-primary">
                             📷 Back Cam
+                        </button>
+
+                        {% if d.audio_record_state == 'START' %}
+                        <a href="/audio_command/{{ d.id }}/stop" class="btn btn-recording col-full" onclick="showToast('Stopping audio recording and uploading...')">
+                            ⏹️ Stop & Send Audio
                         </a>
-                        <a href="/toggle/{{ d.id }}/audio_access" class="btn {{ 'btn-success' if d.audio_access else 'btn-outline' }}">
-                            🎙️ आवाज {{ 'चालू' if d.audio_access else 'बंद' }}
-                        </a>
-                        <a href="/trigger_alarm/{{ d.id }}" class="btn {{ 'btn-danger' if d.ring_alarm else 'btn-warning' }}" onclick="return confirm('मुलाचा फोन मोठ्या आवाजात वाजवायचा आहे का?');">
-                            🔔 {{ 'गजर चालू...' if d.ring_alarm else 'फोन वाजवा (Alarm)' }}
-                        </a>
-                        <a href="/toggle/{{ d.id }}/torch_access" class="btn {{ 'btn-success' if d.torch_access else 'btn-outline' }}">
-                            💡 टॉर्च {{ 'चालू' if d.torch_access else 'बंद' }}
-                        </a>
-                        <a href="/toggle/{{ d.id }}/location_access" class="btn {{ 'btn-success' if d.location_access else 'btn-outline' }}">
-                            📍 GPS {{ 'चालू' if d.location_access else 'बंद' }}
-                        </a>
-                        {% set loc = details[d.id].latest_loc %}
-                        {% if loc %}
-                        <a href="https://www.google.com/maps/search/?api=1&query={{ loc.latitude }},{{ loc.longitude }}" target="_blank" class="btn btn-outline full-width-btn" style="color: #2563eb;">
-                            🗺️ Google Maps वर दिशा पहा
+                        {% else %}
+                        <a href="/audio_command/{{ d.id }}/start" class="btn btn-danger col-full" onclick="showToast('Audio recording started on child\\'s phone...')">
+                            🎙️ Record Audio Clip
                         </a>
                         {% endif %}
-                        <a href="/delete_device/{{ d.id }}" class="btn btn-outline full-width-btn" style="color: var(--danger); font-size: 11px;" onclick="return confirm('खात्री आहे? हे डिव्हाइस आणि त्याचा सर्व डेटा कायमचा काढला जाईल.');">
-                            🗑️ डिव्हाइस हटवा
+
+                        <a href="/trigger_alarm/{{ d.id }}" class="btn {{ 'btn-danger' if d.ring_alarm else 'btn-warning' }}" onclick="return confirm('Ring child\'s phone loudly?');">
+                            🔔 {{ 'Stop Ring' if d.ring_alarm else 'Ring Phone' }}
+                        </a>
+                        <a href="/toggle/{{ d.id }}/torch_access" class="btn {{ 'btn-primary' if d.torch_access else 'btn-outline' }}">
+                            💡 {{ 'Torch OFF' if d.torch_access else 'Torch ON' }}
+                        </a>
+
+                        {% set loc = details[d.id].latest_loc %}
+                        {% if loc %}
+                        <a href="https://www.google.com/maps/search/?api=1&query={{ loc.latitude }},{{ loc.longitude }}" target="_blank" class="btn btn-outline col-full" style="color: var(--primary);">
+                            📍 Open in Google Maps
+                        </a>
+                        {% endif %}
+                        <a href="/delete_device/{{ d.id }}" class="btn btn-outline col-full" style="color: var(--danger); font-size: 11px;" onclick="return confirm('Remove this device and its history?');">
+                            🗑️ Delete Device
                         </a>
                     </div>
                 </div>
                 {% endfor %}
             </div>
 
-            <!-- उजवी बाजू: थेट नकाशा आणि मल्टीमीडिया टॅब्स -->
+            <!-- Right: Live Map & Tabs -->
             <div class="content-column">
-                <!-- OpenStreetMap नकाशा -->
-                <div class="map-container">
+                <div class="map-wrapper">
                     <div id="map"></div>
-                    <div class="map-hint">💡 टीप: सुरक्षित झोन (Geofence) तयार करण्यासाठी नकाशावर कुठेही क्लिक करा.</div>
                 </div>
 
-                <!-- टॅब्स नेव्हिगेशन -->
-                <div class="tabs-header">
-                    <button class="tab-btn active" onclick="openTab(event, 'tab-photos')">📸 फोटो गॅलरी</button>
-                    <button class="tab-btn" onclick="openTab(event, 'tab-audios')">🎙️ ऑडिओ रेकॉर्ड्स</button>
-                    <button class="tab-btn" onclick="openTab(event, 'tab-sms')">💬 संदेश (SMS)</button>
-                    <button class="tab-btn" onclick="openTab(event, 'tab-geofence')">🌐 सुरक्षित झोन (Geofence)</button>
-                    <button class="tab-btn" onclick="openTab(event, 'tab-history')">📊 प्रवास इतिहास (History)</button>
+                <!-- Tabs Navigation -->
+                <div class="tabs-nav">
+                    <button class="tab-btn active" onclick="openTab(event, 'tab-photos')">📸 Photos ({{ details[devices[0].id].photos|length if devices else 0 }})</button>
+                    <button class="tab-btn" onclick="openTab(event, 'tab-audios')">🎙️ Audio Recordings ({{ details[devices[0].id].audios|length if devices else 0 }})</button>
+                    <button class="tab-btn" onclick="openTab(event, 'tab-geofence')">🌐 Geofences</button>
+                    <button class="tab-btn" onclick="openTab(event, 'tab-history')">📍 Travel History</button>
+                    <button class="tab-btn" onclick="openTab(event, 'tab-sms')">💬 SMS</button>
                 </div>
 
-                <!-- टॅब १: फोटो गॅलरी -->
-                <div id="tab-photos" class="tab-content active">
-                    <div class="photo-grid">
+                <!-- Tab 1: Photos -->
+                <div id="tab-photos" class="tab-pane active">
+                    <div class="gallery-grid" id="photos-container">
                         {% set ns = namespace(found=false) %}
                         {% for d in devices %}
                             {% for photo in details[d.id].photos %}
                                 {% set ns.found = true %}
                                 <div class="photo-card">
-                                    <img src="/media/{{ d.id }}/Camera_Captures/{{ photo.filename }}" alt="कॅमेरा फोटो" loading="lazy" onclick="showModal(this.src)">
-                                    <div class="info">
+                                    <img src="/media/{{ d.id }}/Camera_Captures/{{ photo.filename }}" alt="Camera Snap" loading="lazy" onclick="showModal(this.src)">
+                                    <div class="meta">
                                         <b>{{ d.name }}</b><br>
-                                        🕒 {{ photo.timestamp }}
+                                        {{ photo.timestamp }}
                                     </div>
                                 </div>
                             {% endfor %}
                         {% endfor %}
                         {% if not ns.found %}
-                            <p style="color: #64748b; padding: 20px;">कोणतेही फोटो कॅप्चर झालेले नाहीत. डावीकडील 'Front Cam' किंवा 'Back Cam' बटण दाबून फोटो मागवा.</p>
+                            <div style="grid-column: 1/-1; padding: 25px; text-align: center; color: #64748b; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
+                                No photos captured yet.<br>Click <b>Front Cam</b> or <b>Back Cam</b> on the left to capture.
+                            </div>
                         {% endif %}
                     </div>
                 </div>
 
-                <!-- टॅब २: ऑडिओ रेकॉर्ड्स -->
-                <div id="tab-audios" class="tab-content">
+                <!-- Tab 2: Audio -->
+                <div id="tab-audios" class="tab-pane">
                     {% set ns2 = namespace(found=false) %}
                     {% for d in devices %}
                         {% for aud in details[d.id].audios %}
                             {% set ns2.found = true %}
-                            <div class="audio-item">
+                            <div class="audio-row">
                                 <div>
                                     <b>{{ d.name }}</b> - <code>{{ aud.filename }}</code><br>
-                                    <small style="color: #64748b;">🕒 {{ aud.timestamp }}</small>
+                                    <small style="color: #64748b;">{{ aud.timestamp }}</small>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <audio controls src="/media/{{ d.id }}/Audio_Records/{{ aud.filename }}"></audio>
-                                    <a href="/media/{{ d.id }}/Audio_Records/{{ aud.filename }}" download class="btn btn-outline" style="font-size: 11px;">⬇️ डाउनलोड</a>
+                                    <a href="/media/{{ d.id }}/Audio_Records/{{ aud.filename }}" download class="btn btn-outline" style="font-size: 11px;">⬇️ Download</a>
                                 </div>
                             </div>
                         {% endfor %}
                     {% endfor %}
                     {% if not ns2.found %}
-                        <p style="color: #64748b; padding: 20px;">कोणतेही ऑडिओ रेकॉर्ड्स उपलब्ध नाहीत. 'आवाज चालू' वर क्लिक करून ऑडिओ मागवा.</p>
+                        <div style="padding: 25px; text-align: center; color: #64748b; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
+                            No audio recordings yet.<br>Click <b>Record Audio Clip</b> on the left, then click <b>Stop & Send</b> when done.
+                        </div>
                     {% endif %}
                 </div>
 
-                <!-- टॅब ३: एसएमएस लॉग्स -->
-                <div id="tab-sms" class="tab-content">
-                    {% set ns3 = namespace(found=false) %}
+                <!-- Tab 3: Geofences -->
+                <div id="tab-geofence" class="tab-pane">
                     {% for d in devices %}
-                        {% for s in details[d.id].sms %}
-                            {% set ns3.found = true %}
-                            <div class="sms-item">
-                                <div class="sms-header">
-                                    <span>📲 {{ d.name }} &larr; प्रेषक: <b>{{ s.sender }}</b></span>
-                                    <span style="font-weight: normal; color: #64748b;">{{ s.timestamp }}</span>
-                                </div>
-                                <div class="sms-body">{{ s.message }}</div>
-                            </div>
-                        {% endfor %}
-                    {% endfor %}
-                    {% if not ns3.found %}
-                        <p style="color: #64748b; padding: 20px;">कोणतेही एसएमएस रेकॉर्ड्स नाहीत.</p>
-                    {% endif %}
-                </div>
-
-                <!-- टॅब ४: जिओफेन्स (सुरक्षित क्षेत्रे) -->
-                <div id="tab-geofence" class="tab-content">
-                    {% for d in devices %}
-                    <div style="margin-bottom: 25px;">
-                        <h4 style="margin: 0 0 10px 0;">🛡️ {{ d.name }} साठी सुरक्षित झोन (Geofence) जोडा</h4>
-                        <form action="/add_geofence" method="POST" class="geofence-form">
+                    <div style="margin-bottom: 20px;">
+                        <h4 style="margin: 0 0 10px 0;">Safe Zones for {{ d.name }}</h4>
+                        <form action="/add_geofence" method="POST" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
                             <input type="hidden" name="device_id" value="{{ d.id }}">
-                            <input type="text" name="name" placeholder="झोनचे नाव (उदा. घर, शाळा)" required style="flex: 1; min-width: 140px;">
-                            <input type="number" step="any" id="geo-lat-{{ d.id }}" name="latitude" placeholder="अक्षांश (Latitude)" required style="width: 120px;">
-                            <input type="number" step="any" id="geo-lon-{{ d.id }}" name="longitude" placeholder="रेखांश (Longitude)" required style="width: 120px;">
-                            <input type="number" name="radius_meters" placeholder="त्रिज्या (मी)" value="200" required style="width: 90px;">
-                            <button type="submit" class="btn btn-primary">+ सुरक्षित झोन जोडा</button>
+                            <input type="text" name="name" placeholder="Zone Name (e.g. Home, School)" required style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; flex: 1;">
+                            <input type="number" step="any" id="geo-lat-{{ d.id }}" name="latitude" placeholder="Latitude" required style="width: 120px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                            <input type="number" step="any" id="geo-lon-{{ d.id }}" name="longitude" placeholder="Longitude" required style="width: 120px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                            <input type="number" name="radius_meters" placeholder="Radius (m)" value="200" required style="width: 90px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                            <button type="submit" class="btn btn-primary">+ Add Zone</button>
                         </form>
 
-                        <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                            <tr style="background: #f1f5f9; text-align: left;">
-                                <th style="padding: 10px;">झोन नाव</th>
-                                <th style="padding: 10px;">स्थान (Lat, Lon)</th>
-                                <th style="padding: 10px;">त्रिज्या</th>
-                                <th style="padding: 10px;">कृती</th>
+                        <table class="data-table">
+                            <tr>
+                                <th>Name</th>
+                                <th>Coordinates</th>
+                                <th>Radius</th>
+                                <th>Action</th>
                             </tr>
                             {% for f in details[d.id].geofences %}
-                            <tr style="border-bottom: 1px solid #f1f5f9;">
-                                <td style="padding: 10px;"><b>{{ f.name }}</b></td>
-                                <td style="padding: 10px;">{{ f.latitude }}, {{ f.longitude }}</td>
-                                <td style="padding: 10px;">{{ f.radius_meters }}m</td>
-                                <td style="padding: 10px;">
-                                    <a href="/delete_geofence/{{ f.id }}" style="color: var(--danger); text-decoration: none; font-weight: bold;" onclick="return confirm('सुरक्षित झोन काढायचा आहे का?');">हटवा</a>
-                                </td>
+                            <tr>
+                                <td><b>{{ f.name }}</b></td>
+                                <td>{{ f.latitude }}, {{ f.longitude }}</td>
+                                <td>{{ f.radius_meters }}m</td>
+                                <td><a href="/delete_geofence/{{ f.id }}" style="color: var(--danger); font-weight: 600; text-decoration: none;">Delete</a></td>
                             </tr>
                             {% endfor %}
                         </table>
@@ -756,31 +701,46 @@ DASHBOARD_HTML = """
                     {% endfor %}
                 </div>
 
-                <!-- टॅब ५: प्रवास इतिहास (Location History & CSV) -->
-                <div id="tab-history" class="tab-content">
+                <!-- Tab 4: Travel History -->
+                <div id="tab-history" class="tab-pane">
                     {% for d in devices %}
-                    <div style="margin-bottom: 25px;">
+                    <div style="margin-bottom: 20px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <h4 style="margin: 0;">📍 {{ d.name }} - प्रवास नोंदी</h4>
-                            <a href="/export_locations/{{ d.id }}" class="btn btn-outline" style="font-size: 12px;">📊 CSV एक्सेल डाउनलोड करा</a>
+                            <h4 style="margin: 0;">{{ d.name }} Location History</h4>
+                            <a href="/export_locations/{{ d.id }}" class="btn btn-outline" style="font-size: 11px;">📊 Export CSV</a>
                         </div>
-                        <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; font-size: 13px;">
-                            <tr style="background: #f1f5f9; text-align: left;">
-                                <th style="padding: 8px 10px;">वेळ (Timestamp)</th>
-                                <th style="padding: 8px 10px;">अक्षांश (Latitude)</th>
-                                <th style="padding: 8px 10px;">रेखांश (Longitude)</th>
-                                <th style="padding: 8px 10px;">अचूकता (Accuracy)</th>
+                        <table class="data-table">
+                            <tr>
+                                <th>Time</th>
+                                <th>Latitude</th>
+                                <th>Longitude</th>
+                                <th>Accuracy</th>
                             </tr>
                             {% for loc in details[d.id].loc_history[-15:]|reverse %}
-                            <tr style="border-bottom: 1px solid #f1f5f9;">
-                                <td style="padding: 8px 10px;">{{ loc.timestamp }}</td>
-                                <td style="padding: 8px 10px;">{{ loc.latitude }}</td>
-                                <td style="padding: 8px 10px;">{{ loc.longitude }}</td>
-                                <td style="padding: 8px 10px;">{{ loc.accuracy }}m</td>
+                            <tr>
+                                <td>{{ loc.timestamp }}</td>
+                                <td>{{ loc.latitude }}</td>
+                                <td>{{ loc.longitude }}</td>
+                                <td>{{ loc.accuracy }}m</td>
                             </tr>
                             {% endfor %}
                         </table>
                     </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Tab 5: SMS -->
+                <div id="tab-sms" class="tab-pane">
+                    {% for d in devices %}
+                        {% for s in details[d.id].sms %}
+                        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px;">
+                            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 4px;">
+                                <span>From: {{ s.sender }}</span>
+                                <span style="color: #64748b; font-weight: normal;">{{ s.timestamp }}</span>
+                            </div>
+                            <div style="font-size: 13px; color: #334155;">{{ s.message }}</div>
+                        </div>
+                        {% endfor %}
                     {% endfor %}
                 </div>
 
@@ -788,14 +748,13 @@ DASHBOARD_HTML = """
         </div>
     </div>
 
-    <!-- Image Modal Lightbox -->
+    <!-- Modal Lightbox -->
     <div id="imgModal" onclick="this.style.display='none'">
         <img id="modalImg" src="">
     </div>
 
     <script>
-        // Leaflet Map Initialization
-        var map = L.map('map').setView([19.0760, 72.8777], 13);
+        var map = L.map('map').setView([19.0760, 72.8777], 14);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '© OpenStreetMap'
@@ -804,19 +763,16 @@ DASHBOARD_HTML = """
         var markers = {};
         var pathLayers = {};
         var bounds = [];
-
-        // Distinct colors for multiple devices
-        var colors = ['#2563eb', '#16a34a', '#dc2626', '#9333ea', '#ea580c'];
+        var colors = ['#2563eb', '#10b981', '#ef4444', '#8b5cf6'];
 
         {% for d in devices %}
             {% set loc = details[d.id].latest_loc %}
             {% if loc %}
                 markers['{{ d.id }}'] = L.marker([{{ loc.latitude }}, {{ loc.longitude }}]).addTo(map)
-                    .bindPopup("<b>{{ d.name }}</b><br>🔋 {{ d.battery_level }}%<br>🕒 {{ loc.timestamp }}");
+                    .bindPopup("<b>{{ d.name }}</b><br>🔋 {{ d.battery_level }}%<br>{{ loc.timestamp }}");
                 bounds.push([{{ loc.latitude }}, {{ loc.longitude }}]);
             {% endif %}
 
-            // Route Polyline
             var points_{{ loop.index }} = [
                 {% for p in details[d.id].loc_history %}
                     [{{ p.latitude }}, {{ p.longitude }}],
@@ -824,25 +780,24 @@ DASHBOARD_HTML = """
             ];
             if (points_{{ loop.index }}.length > 1) {
                 var c = colors[{{ loop.index0 }} % colors.length];
-                pathLayers['{{ d.id }}'] = L.polyline(points_{{ loop.index }}, {color: c, weight: 4, opacity: 0.75}).addTo(map);
+                pathLayers['{{ d.id }}'] = L.polyline(points_{{ loop.index }}, {color: c, weight: 4, opacity: 0.8}).addTo(map);
             }
 
-            // Geofence Circles
             {% for f in details[d.id].geofences %}
                 L.circle([{{ f.latitude }}, {{ f.longitude }}], {
-                    color: '#16a34a',
+                    color: '#10b981',
                     fillColor: '#86efac',
                     fillOpacity: 0.25,
                     radius: {{ f.radius_meters }}
-                }).addTo(map).bindPopup("<b>सुरक्षित झोन: {{ f.name }}</b><br>त्रिज्या: {{ f.radius_meters }}m");
+                }).addTo(map).bindPopup("<b>Safe Zone: {{ f.name }}</b>");
             {% endfor %}
         {% endfor %}
 
         if (bounds.length > 0) {
-            map.fitBounds(bounds, {padding: [40, 40], maxZoom: 15});
+            map.fitBounds(bounds, {padding: [30, 30], maxZoom: 16});
         }
 
-        // Click map to fill Geofence form coordinates
+        // Map Click sets Geofence coordinates
         map.on('click', function(e) {
             var lat = e.latlng.lat.toFixed(6);
             var lon = e.latlng.lng.toFixed(6);
@@ -853,40 +808,48 @@ DASHBOARD_HTML = """
                 if (latInput && lonInput) {
                     latInput.value = lat;
                     lonInput.value = lon;
-                    alert("📍 नकाशावरील स्थान निवडले गेले आहे:\\nLatitude: " + lat + "\\nLongitude: " + lon);
+                    showToast("Coordinates set from map: " + lat + ", " + lon);
                 }
             {% endif %}
         });
 
-        // Tabs Switcher with LocalStorage memory
+        function showToast(msg) {
+            var tb = document.getElementById('toast-box');
+            tb.innerText = msg;
+            tb.style.display = 'block';
+            setTimeout(function() { tb.style.display = 'none'; }, 6000);
+        }
+
+        function triggerCamera(devId, mode) {
+            showToast("Requesting " + mode + " camera photo... Please wait 3-5 seconds.");
+            fetch('/set_camera/' + devId + '/' + mode)
+                .then(() => {
+                    setTimeout(() => { window.location.reload(); }, 6000);
+                });
+        }
+
         function openTab(evt, tabId) {
-            var tabcontents = document.getElementsByClassName("tab-content");
-            for (var i = 0; i < tabcontents.length; i++) {
-                tabcontents[i].classList.remove("active");
-            }
-            var tablinks = document.getElementsByClassName("tab-btn");
-            for (var i = 0; i < tablinks.length; i++) {
-                tablinks[i].classList.remove("active");
-            }
+            var panes = document.getElementsByClassName("tab-pane");
+            for (var i = 0; i < panes.length; i++) panes[i].classList.remove("active");
+            var btns = document.getElementsByClassName("tab-btn");
+            for (var i = 0; i < btns.length; i++) btns[i].classList.remove("active");
             document.getElementById(tabId).classList.add("active");
             if (evt) evt.currentTarget.classList.add("active");
             localStorage.setItem("activeTab", tabId);
         }
 
-        // Restore tab
         var savedTab = localStorage.getItem("activeTab");
         if (savedTab && document.getElementById(savedTab)) {
             var btn = document.querySelector("button[onclick*='" + savedTab + "']");
             if (btn) btn.click();
         }
 
-        // Lightbox Modal
         function showModal(src) {
             document.getElementById('modalImg').src = src;
             document.getElementById('imgModal').style.display = 'flex';
         }
 
-        // Real-Time AJAX Heartbeat Polling (No Full Page Reload!)
+        // Live Poll (Every 4 seconds)
         setInterval(function() {
             fetch('/api/live_status')
                 .then(r => r.json())
@@ -896,7 +859,7 @@ DASHBOARD_HTML = """
                         var badge = document.getElementById('badge-' + d.id);
                         if (badge) {
                             badge.innerText = d.status;
-                            badge.className = 'badge ' + (d.status.includes('ONLINE') ? 'badge-online' : (d.status.includes('IDLE') ? 'badge-idle' : 'badge-offline'));
+                            badge.className = 'badge ' + (d.status === 'ONLINE' ? 'badge-online' : (d.status === 'IDLE' ? 'badge-idle' : 'badge-offline'));
                         }
                         if (d.latest_loc) {
                             var pos = [d.latest_loc.latitude, d.latest_loc.longitude];
@@ -908,8 +871,8 @@ DASHBOARD_HTML = """
                         }
                     });
                 })
-                .catch(err => console.log("Live poll error", err));
-        }, 8000);
+                .catch(err => console.log(err));
+        }, 4000);
     </script>
 </body>
 </html>
@@ -923,7 +886,6 @@ def dashboard():
     devices = database.get_all_devices()
     now_dt = datetime.datetime.now()
 
-    # डिव्हाइस ऑनलाइन / ऑफलाइन स्टेटस (९० सेकंदांची मर्यादा)
     devices_status = {}
     for d in devices:
         last_seen = d["last_seen"]
@@ -939,20 +901,18 @@ def dashboard():
                 except Exception:
                     diff_sec = 9999
 
-        devices_status[d["id"]] = "🟢 ONLINE" if diff_sec < 90 else ("🟡 IDLE" if diff_sec < 300 else "🔴 OFFLINE")
+        devices_status[d["id"]] = "ONLINE" if diff_sec < 60 else ("IDLE" if diff_sec < 300 else "OFFLINE")
 
-    # सक्रिय अलर्ट्स
     active_alerts = database.get_active_alerts()
 
-    # प्रत्येक डिव्हाइसचे ताजे लोकेशन, फोटो, ऑडिओ आणि जिओफेन्स
     device_details = {}
     for d in devices:
         cid = d["id"]
         device_details[cid] = {
             "latest_loc": database.get_latest_location(cid),
             "loc_history": database.get_location_history(cid, limit=50),
-            "photos": database.get_media_records(cid, media_type="image", limit=16),
-            "audios": database.get_media_records(cid, media_type="audio", limit=12),
+            "photos": database.get_media_records(cid, media_type="image", limit=20),
+            "audios": database.get_media_records(cid, media_type="audio", limit=15),
             "sms": database.get_sms_logs(cid, limit=15),
             "geofences": database.get_geofences(cid)
         }
@@ -976,6 +936,16 @@ def toggle_feature(child_id, feature):
         curr = controls[feature]
         new_val = 0 if curr else 1
         database.update_device_control(child_id, feature, new_val)
+    return redirect(url_for('dashboard'))
+
+@app.route('/audio_command/<child_id>/<action>')
+def audio_command(child_id, action):
+    if not is_authenticated():
+        return redirect(url_for('login'))
+    if action == "start":
+        database.update_device_control(child_id, "audio_record_state", "START")
+    elif action == "stop":
+        database.update_device_control(child_id, "audio_record_state", "STOP")
     return redirect(url_for('dashboard'))
 
 @app.route('/trigger_alarm/<child_id>')
@@ -1002,13 +972,6 @@ def resolve_alert(alert_id):
     if not is_authenticated():
         return redirect(url_for('login'))
     database.resolve_alert(alert_id)
-    return redirect(url_for('dashboard'))
-
-@app.route('/resolve_all_alerts')
-def resolve_all_alerts():
-    if not is_authenticated():
-        return redirect(url_for('login'))
-    database.resolve_all_alerts()
     return redirect(url_for('dashboard'))
 
 @app.route('/delete_device/<child_id>')
@@ -1043,7 +1006,6 @@ def delete_geofence(fence_id):
 
 @app.route('/export_locations/<child_id>')
 def export_locations(child_id):
-    """मुलाच्या प्रवासाचा इतिहास CSV एक्सेल फाईल स्वरूपात डाउनलोड करणे"""
     if not is_authenticated():
         return redirect(url_for('login'))
     
@@ -1063,9 +1025,5 @@ def export_locations(child_id):
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    print("=" * 65)
-    print("🛡️ पालक नियंत्रण व सुरक्षा सर्व्हर (ChildMonitor Server) सुरू झाला आहे")
-    print(f"👉 ब्राऊझरमध्ये उघडा: http://127.0.0.1:{port}")
-    print(f"🔐 पालक डॅशबोर्ड पासवर्ड: {PARENT_PASSWORD}")
-    print("=" * 65)
+    print(f"ChildMonitor server starting on port {port}...")
     app.run(host='0.0.0.0', port=port, debug=False)
